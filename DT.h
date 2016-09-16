@@ -19,6 +19,16 @@ class node {
         void classify(vector<vector<attribute>> data, vector<feature*> features, size_t rid, size_t nb_class);
 };
 
+/** Clas for Decision Tree **/
+class DTClassifier{
+	CSV_Reader* reader;
+	vector<vector<string>> attrs_values(cols);
+	vector<vector<attribute>> data;
+	private:
+		vector<vector<atribute>> generate_data();
+	public:
+		DTClassifier(string filename);
+};
 
 void print_vec(vector<attribute> as);
 
