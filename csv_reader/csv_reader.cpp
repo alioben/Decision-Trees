@@ -36,6 +36,12 @@ bool CSV_Reader::is_next(){
 	return !infile.eof();
 }
 
+string CSV_Reader::get_attr_at(size_t col){
+	if(col >= attributes.size())
+		throw "Index out of range.";
+	return attributes.at(col);
+}
+
 /** Initiliaze the CSV row by reading the element of that row **/
 CSV_Row::CSV_Row(string line){
 	string delimiter = ",";

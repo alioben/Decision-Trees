@@ -30,4 +30,5 @@ class CSV_Reader{
 		CSV_Reader(string filename);
 		CSV_Row& get_next_row();	/** Fetch the next row from file **/
 		bool is_next();
+		string get_attr_at(size_t col);
 };

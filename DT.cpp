@@ -7,14 +7,15 @@ using namespace std;
 #include "DT.h"
 
 /** Feature functions **/
-feature::feature(size_t id, size_t attrs) {
+feature::feature(size_t id, size_t attrs, bool is_class) {
     this->nb_attrs = attrs;
     this->id = id;
+    this->is_class = is_class;
 }
 
 /** Calculate the entropy of the data based on the attributes **/
-static double get_entropy(vector<vector<attribute>> data, size_t rid, size_t nb_attrs) {
-    size_t length = nb_attrs;
+static double get_entropy(vector<vector<attribute>> data, feature& feat) {
+    size_t length = feat.nb_attrs;
     if(length == 0)
         return 0;
 
@@ -26,7 +27,7 @@ static double get_entropy(vector<vector<attribute>> data, size_t rid, size_t nb_
 
     // Compute the number of occurences for each attribute
     for(auto &line: data)
-        totals[line.at(rid)]++;
+        totals[line.at(feat.id)]++;
 
     // Get the entropy
     for(size_t i = 0; i < length; i++) {
@@ -39,13 +40,13 @@ static double get_entropy(vector<vector<attribute>> data, size_t rid, size_t nb_
 }
 
 /** Classify the data and get the best feature to split with **/
-void node::classify(vector<vector<attribute>> data, vector<feature*> features, size_t rid, size_t nb_class) {
+void node::classify(vector<vector<attribute>> data, vector<feature*> features) {
     // Calculate entropy of data
-    double entropy = get_entropy(data, rid, nb_class);
+    double entropy = get_entropy(data, *(features.back()));
 
     // If we are at the bottom -> make decision
     if(entropy == 0) {
-        decision = data.at(0).at(rid);
+        decision = data.at(0).at(features.back()->id);
         return;
     }
 
@@ -53,6 +54,9 @@ void node::classify(vector<vector<attribute>> data, vector<feature*> features, s
     double max_gain = 0;
     size_t id;
     for(auto &f: features) {
+        if(f->is_class)
+            continue;
+
         // Keep track of entropies for each attribute
         double entropies[f->nb_attrs];
         for(int i = 0; i < f->nb_attrs; i++)
@@ -62,7 +66,7 @@ void node::classify(vector<vector<attribute>> data, vector<feature*> features, s
             vector<vector<attribute>> attr_to_rows = search(data, f->id, a);
 
             // Calculate entropy for this attribute
-            entropies[a] = get_entropy(attr_to_rows, rid, nb_class);
+            entropies[a] = get_entropy(attr_to_rows, *f);
         }
 
         // Calculate the gain
@@ -88,7 +92,7 @@ void node::classify(vector<vector<attribute>> data, vector<feature*> features, s
         // Next node
         node* new_node = new node();
         this->children.push_back(new_node);
-        new_node->classify(new_data, features, rid, nb_class);
+        new_node->classify(new_data, features);
     }
 
     this->entropy = entropy;
@@ -134,14 +138,20 @@ void print_tree(node* n) {
         printf(" [d: %lu] ", n->decision);
 }
 
-DTClassifier::DTClassifier(string filename) {
+DTClassifier::DTClassifier(string filename, string c) {
     reader = new CSV_Reader(filename);
+    rc = 0;
+    // Store the index of the class in the table
+    while(c.compare(reader->get_attr_at(rc)) &&
+		  rc < reader->get_size_col()-1)
+		rc++;
 }
 
 vector<vector<atribute>> DTClassifier::generate_data() {
 	if(data.size() > 0)
 		return data;
     size_t cols = reader.get_size_col();
+	attrs_values.resize(cols);
 	
     // Load data into array
     while(is_next()) {
@@ -164,4 +174,26 @@ vector<vector<atribute>> DTClassifier::generate_data() {
         // Insert the line in the data array
         data.push_back(new_line);
     }
+}
+
+node& DTClassifier::fit(){
+	size_t cols = reader.get_size_col();
+	
+	// Initialize the array of features
+	vector<feature*> features(cols);
+    feature* c;
+    int j = 0;
+	for(size_t i = 0; i < cols; i++){
+		if(rc != i){
+			feature* f = new feature(j, attrs_values.at(i).size(), false);
+			features.push_back(f);
+            j++;
+		} else  c = new feature(cols-1, attrs_values.at(i).size(), true);
+	}
+    features.push_back(c);
+	
+	// Generate data from csv file
+	vector<vector<attribute>> data = generate_data();
+	node* root = new node();
+	node.classify(data, features);
 }
