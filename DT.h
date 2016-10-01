@@ -1,3 +1,11 @@
+#include <iostream>
+#include <string>
+#include <cmath>
+#include <vector>
+#include <cassert>
+#include "csv_reader/csv_reader.h"
+using namespace std;
+
 /** Type representing attribute like true Windy **/
 typedef size_t attribute;
 
@@ -8,6 +16,7 @@ class feature {
         size_t id;								/** Position int the table of data **/
         size_t nb_attrs;					/** Number of attributes of this feature **/
         bool is_class;
+        bool active;
 };
 
 /** Class for a node in decision tree **/
@@ -22,12 +31,13 @@ class node {
 
 /** Clas for Decision Tree **/
 class DTClassifier{
-	CSV_Reader* reader;
-	vector<vector<string>> attrs_values;
-	vector<vector<attribute>> data;
-	size_t rc;
 	private:
-		vector<vector<atribute>> generate_data();
+		vector<vector<attribute>> generate_data();
+		CSV_Reader* reader;
+		vector<vector<string>> attrs_values;
+		vector<vector<attribute>> data;
+		vector<feature*> features;
+		size_t rc;
 	public:
 		DTClassifier(string filename, string c);
 		node& fit();

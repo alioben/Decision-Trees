@@ -1,0 +1,15 @@
+Outlook,Temp,Hummid,Wind,Class
+sunny,+,+,+,-
+sunny,+,+,-,-
+sunny,-,+,-,-
+rain,-,+,+,-
+rain,-,-,+,-
+sunny,-,-,+,+
+sunny,-,-,-,+
+overcast,-,+,+,+
+overcast,+,+,-,+
+overcast,-,-,+,+
+overcast,+,-,-,+
+rain,-,+,-,+
+rain,-,+,-,+
+rain,-,+,-,+

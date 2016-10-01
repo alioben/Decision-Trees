@@ -1,11 +1,14 @@
 #include "csv_reader.h"
 #include "sutils.h"
+#include <sstream>
 
 /** Initialize the attributes and the number of columns **/
 CSV_Reader::CSV_Reader(string filename){
 	infile.open(filename);
 	CSV_Row first_row = get_next_row();
 	tot_cols = first_row.get_size_col();
+	for(int i = 0; i < tot_cols; i++)
+		attributes.push_back(first_row.get_string_at(i));	
 }
 
 /** Fetch the next row from file **/
@@ -35,7 +38,9 @@ bool CSV_Reader::is_next(){
 	if(last_char != '\n' && last_char != EOF) infile.putback(last_char);
 	return !infile.eof();
 }
-
+size_t CSV_Reader::get_size_col(){
+	return tot_cols;
+}
 string CSV_Reader::get_attr_at(size_t col){
 	if(col >= attributes.size())
 		throw "Index out of range.";
@@ -44,14 +49,13 @@ string CSV_Reader::get_attr_at(size_t col){
 
 /** Initiliaze the CSV row by reading the element of that row **/
 CSV_Row::CSV_Row(string line){
-	string delimiter = ",";
-	size_t position = 0;
-	string token;
-	while ((position = line.find(delimiter)) != string::npos) {
-		token = line.substr(0, position);
-		elements.push_back(trim(token));
-		line.erase(0, position + delimiter.length());
-	}
+	char delim = ',';
+	std::stringstream ss(line);
+    ss.str(line);
+    string item;
+    while (std::getline(ss, item, delim)) {
+        elements.push_back(trim(item));
+    }
 }
 
 /** Getters for double, string, int, time and size **/

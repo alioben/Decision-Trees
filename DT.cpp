@@ -1,20 +1,16 @@
-#include <iostream>
-#include <string>
-#include <cmath>
-#include <vector>
-#include <cassert>
-using namespace std;
 #include "DT.h"
+#include "csv_reader/sutils.h"
 
 /** Feature functions **/
 feature::feature(size_t id, size_t attrs, bool is_class) {
     this->nb_attrs = attrs;
     this->id = id;
     this->is_class = is_class;
+    this->active = true;
 }
 
 /** Calculate the entropy of the data based on the attributes **/
-static double get_entropy(vector<vector<attribute>> data, feature& feat) {
+double get_entropy(vector<vector<attribute>> data, feature& feat) {
     size_t length = feat.nb_attrs;
     if(length == 0)
         return 0;
@@ -50,40 +46,49 @@ void node::classify(vector<vector<attribute>> data, vector<feature*> features) {
         return;
     }
 
+    /*
+    cout << "------------------------" << endl;
+    cout << "current entropy: " << entropy << endl;
+    */
+
     // Calculate gain for each feature and get the best one
     double max_gain = 0;
     size_t id;
     for(auto &f: features) {
-        if(f->is_class)
-            continue;
+        if(!f->is_class && f->active){
+            // Keep track of entropies for each attribute
+            double entropies[f->nb_attrs];
+            for(int i = 0; i < f->nb_attrs; i++)
+                entropies[i] = 0;
+            // Sort data for each attribute of the current feature
+            for(size_t a = 0; a < f->nb_attrs; a++) {
+                vector<vector<attribute>> attr_to_rows = search(data, f->id, a);
+                // Calculate entropy for this attribute
+                entropies[a] = (attr_to_rows.size()/(1.0*data.size()))*get_entropy(attr_to_rows, *features.back());
+            }
 
-        // Keep track of entropies for each attribute
-        double entropies[f->nb_attrs];
-        for(int i = 0; i < f->nb_attrs; i++)
-            entropies[i] = 0;
-        // Sort data for each attribute of the current feature
-        for(size_t a = 0; a < f->nb_attrs; a++) {
-            vector<vector<attribute>> attr_to_rows = search(data, f->id, a);
+            // Calculate the gain
+            double gain = entropy - mean(entropies, f->nb_attrs);
 
-            // Calculate entropy for this attribute
-            entropies[a] = get_entropy(attr_to_rows, *f);
-        }
+            assert(gain >= 0);
 
-        // Calculate the gain
-        double gain = entropy - mean(entropies, f->nb_attrs);
-
-        assert(gain >= 0);
-
-        // Update the best split
-        if(gain > max_gain) {
-            max_gain = gain;
-            id = f->id;
+            // Update the best split
+            if(gain > max_gain) {
+                max_gain = gain;
+                id = f->id;
+            }
         }
     }
+    
+    /*
+    cout << "max gain: " << max_gain << endl;
+    cout << "entropy of best: " << (entropy-max_gain) << endl;
+    cout << "split on feature #" << id << endl << endl;
+    */
 
     // Update the list of features
     feat = features.at(id);
-    features.erase(features.begin() + id);
+    feat->active = false;
 
     for(size_t a = 0; a < feat->nb_attrs; a++) {
         // Get data for this new node
@@ -115,7 +120,7 @@ double mean(double* array, size_t size) {
     double sum = 0;
     for(size_t i =0 ; i < size; i++)
         sum += array[i];
-    return sum*1.0/size;
+    return sum;
 }
 
 /** Print a single line of data **/
@@ -142,58 +147,69 @@ DTClassifier::DTClassifier(string filename, string c) {
     reader = new CSV_Reader(filename);
     rc = 0;
     // Store the index of the class in the table
-    while(c.compare(reader->get_attr_at(rc)) &&
-		  rc < reader->get_size_col()-1)
+    while(rc < reader->get_size_col() && 
+        c.compare(reader->get_attr_at(rc)))
 		rc++;
 }
 
-vector<vector<atribute>> DTClassifier::generate_data() {
-	if(data.size() > 0)
-		return data;
-    size_t cols = reader.get_size_col();
-	attrs_values.resize(cols);
-	
+vector<vector<attribute>> DTClassifier::generate_data() {
+    size_t cols = reader->get_size_col();
+
+    // Clear old data
+    data.clear();
+    attrs_values.clear();
+    attrs_values.resize(cols);
+
     // Load data into array
-    while(is_next()) {
-		vector<attribute> new_line(cols);
-        CSV_Row row = reader.get_next_row();
-        for(size_t i = 0; i < cols; i++) {
-			string val = row.get_string_at(i);
-			
+    while(reader->is_next()) {
+
+		vector<attribute> new_line;
+        CSV_Row row = reader->get_next_row();
+
+        for(size_t j = 0; j < cols; j++) {
+            size_t i = (j == this->rc) ? (cols-1) : ((j < this->rc) ? j : j-1);
+
+			string val = row.get_string_at(j);
 			// Get the equivalent index for this value
-			size_t index = index_of(attrs_values.at(i), val);
+			int index = index_of(attrs_values.at(i), val);
 			if(index < 0){
 				attrs_values.at(i).push_back(val);
 				index = attrs_values.at(i).size()-1;
 			}
-			
+
 			// Insert the coloumns in the new line
-			new_line.push_back(index);
+			new_line.push_back((attribute)index);
         }
-        
+
         // Insert the line in the data array
         data.push_back(new_line);
     }
+    return data;
 }
 
 node& DTClassifier::fit(){
-	size_t cols = reader.get_size_col();
-	
+    // Generate data from csv file
+    vector<vector<attribute>> data = generate_data();
+
+    /*
+    cout << "data:"<< endl;
+    for(int i = 0; i < data.size(); i++){
+        for(int j = 0; j < data.at(i).size(); j++){
+            cout << data.at(i).at(j) << " ";
+        }
+        cout << endl;
+    }
+    */
+    
 	// Initialize the array of features
-	vector<feature*> features(cols);
-    feature* c;
-    int j = 0;
-	for(size_t i = 0; i < cols; i++){
-		if(rc != i){
-			feature* f = new feature(j, attrs_values.at(i).size(), false);
-			features.push_back(f);
-            j++;
-		} else  c = new feature(cols-1, attrs_values.at(i).size(), true);
+	for(size_t i = 0; i < attrs_values.size(); i++){
+        bool is_class = (i == attrs_values.size()-1);
+		feature* f = new feature(i, attrs_values.at(i).size(), is_class);
+		features.push_back(f);
 	}
-    features.push_back(c);
 	
-	// Generate data from csv file
-	vector<vector<attribute>> data = generate_data();
+    // Fit the decision tree to data
 	node* root = new node();
-	node.classify(data, features);
+	root->classify(data, features);
+    return *root;
 }
