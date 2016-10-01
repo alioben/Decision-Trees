@@ -1,5 +1,5 @@
 #include <iostream>
-#include "DT.h"
+#include "../DT.h"
 
 
 int main(){
